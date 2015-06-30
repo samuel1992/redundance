@@ -1,0 +1,64 @@
+#!/bin/bash
+#/etc/init.d/redundance-service
+
+PID=`ps aux | grep redundance.sh | grep redundance.sh | grep -v grep | awk '{print $2}'` ; export PID
+
+testRunning(){
+	pgrep redundance.sh
+	if [ $? -eq 0 ] ; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+do_start(){
+	if testRunning ; then
+		echo "O servico de redundancia ja esta ativo no PID: $PID"
+		sleep 0.3
+	else 
+		/usr/local/bin/redundance.sh > /dev/null 2>1&
+		sleep 0.3
+		echo "Iniciando o redundance.sh : PID => `ps aux | grep redundance.sh | grep redundance.sh | grep -v grep | awk '{print $2}'`"
+	fi
+}
+
+do_stop(){
+	kill -15 $PID > /dev/null 2>1&
+	echo "Parando o serviço redundance.sh ($PID)"
+}
+
+do_restart(){
+	if testRunning ; then
+		kill -15 $PID > /dev/null 2>1&
+		echo "Reiniciando o serviço redundance.sh ($PID)"
+		sleep 1
+		/usr/local/bin/redundance.sh
+	else
+		do_start
+	fi
+}
+
+
+case "$1" in 
+	start)
+			do_start
+			;;
+	stop)
+			do_stop
+			;;
+	restart)
+			do_restart
+			;;
+	status)
+			if testRunning ; then
+				echo "O serviço redundance.sh ($PID) está rodando com sucesso"
+			else
+				echo "O serviço redundance.sh está parado"
+			fi
+			;;
+		*)
+			echo "Use start|stop|restart|status"
+			;;
+esac
+	
