@@ -53,12 +53,6 @@ GW2=192.168.0.1 ; export GW2 #aqui entro com meu gateway de backup
 ## LINKS[03]=																			   ##
 ## LINKS[04]=																			   ##
 #############################################################################################
-# Tambem sera necessaario preencher o array que define os pesos para cada gateway
-declare -A LINKS
-LINKS[01]=$GW01
-LINKS[02]=$GW02
-LINKS[03]=$GW03
-LINKS[04]=$GW04
 
 #
 # Funcao para escrever em arquivo de log
