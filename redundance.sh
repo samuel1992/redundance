@@ -45,20 +45,20 @@ GW2=192.168.0.1 ; export GW2 #aqui entro com meu gateway de backup
 #############################################################################################
 ## Em caso de uso de multiplos gateways (mais de 2) será necessario setar todos aqui antes ##
 ## e tambem comentar o (GW1 e GW2) que esta acima                                          ##
-## Usaremos essas variaveis como valor de um array que define os pesos/prioridade dos GWs  ##
+## Usaremos um array chamado LINKS e setar os ips dos gateways conforme seu peso		   ##
 ## -- mutiples gateways. Ex:  															   ##
-## GW1=																					   ##
-## GW2=																					   ##
-## GW3=																					   ##
-## GW4=																					   ##
-## GW5=																					   ##
+## declare -A LINKS																		   ##
+## LINKS[01]=																			   ##
+## LINKS[02]=																			   ##
+## LINKS[03]=																			   ##
+## LINKS[04]=																			   ##
 #############################################################################################
 # Tambem sera necessaario preencher o array que define os pesos para cada gateway
 declare -A LINKS
-LINKS[1]=$GW1
-LINKS[2]=$GW2
-LINKS[3]=$GW3
-LINKS[4]=$GW4
+LINKS[01]=$GW01
+LINKS[02]=$GW02
+LINKS[03]=$GW03
+LINKS[04]=$GW04
 
 #
 # Funcao para escrever em arquivo de log
@@ -105,12 +105,12 @@ checkDefault(){
 # essa funcao adiciona um ip para sair por um determinado gateway e depois pinga esse ip
 #
 testEspecificGw(){
-	route add $1 gw $2
+	route add $1 gw $2 > /dev/null
 	ping $1 -c 5 -A > /dev/null
 	if [ $? -eq 0 ] ; then
-		route del $1 gw $2 && return 0 # Sempre removemos a rota criada e retornamos positivo/negativo
+		route del $1 gw $2 > /dev/null && return 0 # Sempre removemos a rota criada e retornamos positivo/negativo
 	else
-		route del $1 gw $2 && return 1 # Sempre removemos a rota criada e retornamos positivo/negativo
+		route del $1 gw $2 > /dev/null && return 1 # Sempre removemos a rota criada e retornamos positivo/negativo
 	fi
 }
 
@@ -182,30 +182,54 @@ testMultipleGw(){
 	# Fazendo loop para ficar vendo a conexao com a internet
 	while :; do
 		if testGw ; then # condicao para saber se a internet esta operando
-			# sob a condicao de ter internet, agora veririco se o gateway atual (default) eh o primeiro (menor peso)
-			if [ `ip route show | egrep -e "^default*" | awk '{print $3}'` == ${LINKS[1]} ] ; then
-				# bla bla bla
+			minimalOpGw=minimalgateway # Setando o gateway de menor peso e funcional
+			# sob a condicao de ter internet, agora veririco se o gateway atual (default) eh o de menor peso
+			if [ `ip route show | egrep -e "^default*" | awk '{print $3}'` == $minimalOpGw ] ; then
+				writeLog "O gateway ($minimalOpGw) está operante e é o gateway de menor peso (maior prioridade)"
 			else
-				# ver se os gateways abaixo do que esta sendo usado estao funcionando 
+				# O gateway atual nao eh o de menor peso, entao adicionamos o menor e removemos o atual
+				changeGw $minimalOpGw `ip route show | egrep -e "^default*" | awk '{print $3}'`  
+				writeLog "O gateway atual foi alterado para o de menor peso que estah respondendo a internet ($minimalOpGw)"
 			fi
 		else # Else para caso nao tenha internet
-			# escolher o menor gateway funcinoal pra setar como padrao
+			minimalOpGw=minimalGateway
+			changeGw $minimalOpGw `ip route show | egrep -e "^default*" | awk '{print $3}'`
+			writeLog "Alterado para o menor gateway pois a internet está down ($minimalOpGw)"
 		fi
 	done	
 }
 
+
 #
-# Funcao para alterar os gateways conforme cair
+# Funcao para testar o gateway de menor prioridade e retornar ele
+#
+minimalGateway(){
+	for gw in ${LINKS[@]} ; do
+		# Testando o ip do LOOP para ver qual responde mais rapido
+		if testEspecificGw $IPtest1 $gw ; then 
+			echo $gw && exit 
+		else
+			let cont=$cont+1 ; export cont
+		fi
+		# Verificando se todos os gateways estao down
+		if [ $cont -eq ${#LINKS[@]} ] ; then
+			writeLog "Todos os gateways estao down" && echo "`ip route show | egrep -e "^default*" | awk '{print $3}'`" && exit
+		fi
+	done | sort  
+}
+
+#
+# Funcao para alterar os gateways, o primeiro parametro passado sera adicionado e o segundo removido
 #
 changeGw(){
 	# adicionando o gateway padrao para outro passado
+	sudo route add default gw $1
 	writeLog "Gateway $1 adicionado"
 	writeCritical "Gateway $1 adicionado"
-	sudo route add default gw $1
 	# removendo o gateway que estava anteriormente 
+	sudo route del default gw $2	
 	writeLog "Gateway $2 removido"
 	writeCritical "gateway $2 removido"
-	sudo route del default gw $2	
 	# vendo quem eh o gateway atual depois da mudanca pelo route add/del	
 	GW_ATUAL=`ip route show | egrep -e "^default*" | awk '{print $3}'`
 	# testando se o gateway foi alterado e retornando positivo caso sim
