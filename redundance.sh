@@ -34,7 +34,9 @@ IPtest1=8.8.8.8 ; export IPtest1
 IPtest2=8.8.4.4 ; export IPtest2
 
 # Descobrindo qual eh o gateway default ativo e setando em uma variavel o IP dele
-GW_DEFAULT_UP=`ip route show | egrep -e "^default*" | awk '{print $3}'` ; export GW_DEFAULT_UP
+GW_DEFAULT_UP(){
+	echo "`ip route show | egrep -e "^default*" | awk '{print $3}'`"
+} 
 
 # Gateway principal 
 GW1=131.255.103.201 ; export GW1 #aqui entro com meu gateway prioritario
@@ -85,7 +87,7 @@ testGw(){
 # Funcao para checar se o parametro passado eh o gateway default
 #
 checkDefault(){
-	if [ $1 == `ip route show | egrep -e "^default*" | awk '{print $3}'` ] ; then
+	if [ $1 == `GW_DEFAULT_UP` ] ; then
 		return 0 # retornando true
 	else
 		return 1 # retornando false
@@ -114,7 +116,7 @@ testEspecificGw(){
 testPrimaryGw(){
 	while :; do
 		# verificando se o gateway default eh o mesmo que o gateway primario (GW1)
-		if [ `ip route show | egrep -e "^default*" | awk '{print $3}'` == $GW1 ]; then 
+		if [ `GW_DEFAULT_UP` == $GW1 ]; then 
 			# ja que o GW default eh o mesmo que o GW1 entao testamos o default (teste de ping)
 			if testEspecificGw $IPtest1 $GW1; then 
 				writeLog "Gateway $GW1 (placa $IF1) esta respondendo a internet e eh Default"
@@ -152,16 +154,16 @@ testOnlyIf(){
 	while :; do
 		# Verificando se o gateway atual esta respondendo a internet
 		if testGw; then
-			writeLog "Gateway default (`ip route show | egrep -e "^default*" | awk '{print $3}'`) esta respondendo a internet"
+			writeLog "Gateway default (`GW_DEFAULT_UP`) esta respondendo a internet"
 			sleep 2
 		# alterando o gateway caso estiver falhando
-		elif [ `ip route show | egrep -e "^default*" | awk '{print $3}'` == $GW1 ]; then # verifico qual Gateway eh o atual para mudar ao secundario
-			writeLog "O gateway `ip route show | egrep -e "^default*" | awk '{print $3}'` parou de responder a internet !"
-			writeCritical "O gateway `ip route show | egrep -e "^default*" | awk '{print $3}'` parou de responder a internet !"
+		elif [ `GW_DEFAULT_UP` == $GW1 ]; then # verifico qual Gateway eh o atual para mudar ao secundario
+			writeLog "O gateway `GW_DEFAULT_UP` parou de responder a internet !"
+			writeCritical "O gateway `GW_DEFAULT_UP` parou de responder a internet !"
 			changeGw $GW2 $GW1 # altero para o secundario pois o primario eh o default e nao responde
 		else
-			writeLog "O gateway `ip route show | egrep -e "^default*" | awk '{print $3}'` parou de responder a internet !"
-			writeCritical "O gateway `ip route show | egrep -e "^default*" | awk '{print $3}'` parou de responder a internet !"
+			writeLog "O gateway `GW_DEFAULT_UP` parou de responder a internet !"
+			writeCritical "O gateway `GW_DEFAULT_UP` parou de responder a internet !"
 			changeGw $GW1 $GW2 # altero para o primario pois o secundario eh o default e nao responde
 		fi
 	done
@@ -176,18 +178,19 @@ testMultipleGw(){
 	# Fazendo loop para ficar vendo a conexao com a internet
 	while :; do
 		if testGw ; then # condicao para saber se a internet esta operando
-			minimalOpGw=minimalgateway # Setando o gateway de menor peso e funcional
+			minimalOpGw=`minimalGateway` # Setando o gateway de menor peso e funcional
 			# sob a condicao de ter internet, agora veririco se o gateway atual (default) eh o de menor peso
-			if [ `ip route show | egrep -e "^default*" | awk '{print $3}'` == $minimalOpGw ] ; then
+			if [ `GW_DEFAULT_UP` == $minimalOpGw ] ; then
 				writeLog "O gateway ($minimalOpGw) está operante e é o gateway de menor peso (maior prioridade)"
 			else
 				# O gateway atual nao eh o de menor peso, entao adicionamos o menor e removemos o atual
-				changeGw $minimalOpGw `ip route show | egrep -e "^default*" | awk '{print $3}'`  
+				changeGw $minimalOpGw `GW_DEFAULT_UP`  
 				writeLog "O gateway atual foi alterado para o de menor peso que estah respondendo a internet ($minimalOpGw)"
 			fi
 		else # Else para caso nao tenha internet
-			minimalOpGw=minimalGateway
-			changeGw $minimalOpGw `ip route show | egrep -e "^default*" | awk '{print $3}'`
+			writeLog "O gateway padrao nao tem conexao (`GW_DEFAULT_UP`) serah alterado"
+			minimalOpGw=`1minimalGateway`
+			changeGw $minimalOpGw `GW_DEFAULT_UP`
 			writeLog "Alterado para o menor gateway pois a internet está down ($minimalOpGw)"
 		fi
 	done	
@@ -207,7 +210,7 @@ minimalGateway(){
 		fi
 		# Verificando se todos os gateways estao down
 		if [ $cont -eq ${#LINKS[@]} ] ; then
-			writeLog "Todos os gateways estao down" && echo "`ip route show | egrep -e "^default*" | awk '{print $3}'`" && exit
+			writeLog "Todos os gateways estao down" && echo "`GW_DEFAULT_UP`" && exit
 		fi
 	done | sort  
 }
@@ -225,7 +228,7 @@ changeGw(){
 	writeLog "Gateway $2 removido"
 	writeCritical "gateway $2 removido"
 	# vendo quem eh o gateway atual depois da mudanca pelo route add/del	
-	GW_ATUAL=`ip route show | egrep -e "^default*" | awk '{print $3}'`
+	GW_ATUAL=`GW_DEFAULT_UP`
 	# testando se o gateway foi alterado e retornando positivo caso sim
 	if [ $GW_ATUAL == $1 ]; then
 		return 0
