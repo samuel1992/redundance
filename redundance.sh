@@ -13,7 +13,9 @@ export LC_ALL=C
 export PATH=/bin:/usr/bin:/sbin:/usr/sbin 
 
 # Caminho do arquivo de log Critico
-CRITICALLOG='/var/log/redundance/redundanceErr/redundanceErr.log'
+CRITICALLOG_DIR='/var/log/redundance/redundanceErr'
+# Caminho do arquivo de log Critico
+CRITICALLOG=$CRITICALLOG_DIR'/redundanceErr.log'
 # Caminho do diretorio para o log
 LOGDIR='/var/log/redundance'
 # Caminho do arquivo de LOG
@@ -22,8 +24,12 @@ LOG=$LOGDIR'/redundance.log'
 if [ ! -d "$LOGDIR" ]; then
 	sudo mkdir $LOGDIR ; touch $LOG
 fi
+# Criando o diretorio/arquivo de logCritical caso nao exista
+if [ ! -d "$CRITICALLOG_DIR" ]; then
+        sudo mkdir $CRITICALLOG_DIR ; touch $CRITICALLOG 
+fi
 # Permissao para arquivo de log
-sudo chmod 777 $LOG
+sudo chmod 777 $LOG && sudo chmod 777 $CRITICALLOG
 
 # Placa primaria
 IF1=eth0:2 ; export IF1
@@ -38,22 +44,30 @@ GW_DEFAULT_UP(){
 	echo "`ip route show | egrep -e "^default*" | awk '{print $3}'`"
 } 
 
+# Comando customizado para ser executado após a alteração do gateway
+# obs: alguns lugares tem necessidade de efetuar alguma configuracao apos mudar a internet
+# exemplo : restartar o squid após mudar o gateway
+COMMAND_CUSTOM(){
+	# Inserir abaixo o comando necessario
+	# ex: sudo service squid3 restart
+}
+
 # Gateway principal 
-GW1=131.255.103.201 ; export GW1 #aqui entro com meu gateway prioritario
+#GW1= ; export GW1 #aqui entro com meu gateway prioritario
 
 # Gateway secundario
-GW2=192.168.0.1 ; export GW2 #aqui entro com meu gateway de backup
+#GW2= ; export GW2 #aqui entro com meu gateway de backup
 
 #############################################################################################
 ## Em caso de uso de multiplos gateways (mais de 2) será necessario setar todos aqui antes ##
 ## e tambem comentar o (GW1 e GW2) que esta acima                                          ##
-## Usaremos um array chamado LINKS e setar os ips dos gateways conforme seu peso		   ##
-## -- mutiples gateways. Ex:  															   ##
-## declare -A LINKS																		   ##
-## LINKS[01]=																			   ##
-## LINKS[02]=																			   ##
-## LINKS[03]=																			   ##
-## LINKS[04]=																			   ##
+## Usaremos um array chamado LINKS e setar os ips dos gateways conforme seu peso           ##
+## -- mutiples gateways. Ex:
+declare -A LINKS
+LINKS[01]="0.0.0.0"
+LINKS[02]="0.0.0.1"
+LINKS[03]="0.0.0.2"
+LINKS[04]="0.0.0.3"
 #############################################################################################
 
 #
@@ -185,10 +199,10 @@ testMultipleGw(){
 			else
 				# O gateway atual nao eh o de menor peso, entao adicionamos o menor e removemos o atual
 				changeGw $minimalOpGw `GW_DEFAULT_UP`  
-				writeLog "O gateway atual foi alterado para o de menor peso que estah respondendo a internet ($minimalOpGw)"
+				writeLog "O gateway atual foi alterado para o de menor peso que está respondendo a internet ($minimalOpGw)"
 			fi
 		else # Else para caso nao tenha internet
-			writeLog "O gateway padrao nao tem conexao (`GW_DEFAULT_UP`) serah alterado"
+			writeLog "O gateway padrao nao tem conexao (`GW_DEFAULT_UP`) será alterado"
 			minimalOpGw=`1minimalGateway`
 			changeGw $minimalOpGw `GW_DEFAULT_UP`
 			writeLog "Alterado para o menor gateway pois a internet está down ($minimalOpGw)"
@@ -231,10 +245,10 @@ changeGw(){
 	GW_ATUAL=`GW_DEFAULT_UP`
 	# testando se o gateway foi alterado e retornando positivo caso sim
 	if [ $GW_ATUAL == $1 ]; then
-		return 0
-	else
-		return 1
+		return 0 && `COMMAND_CUSTOM` # Alguns lugares precisam de certos ajustes após mudar o gateway
+	else				     # por isso criei uma funcao que pode ser preenchida com qualquer comando					
+		return 1 && `COMMAND_CUSTOM` # para ser feito apos a mudanca do gateway
 	fi
 }
 
-testPrimaryGw
+testMultipleGw
