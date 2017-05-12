@@ -203,7 +203,7 @@ testMultipleGw(){
 			fi
 		else # Else para caso nao tenha internet
 			writeLog "O gateway padrao nao tem conexao (`GW_DEFAULT_UP`) será alterado"
-			minimalOpGw=`1minimalGateway`
+			minimalOpGw=`minimalGateway`
 			changeGw $minimalOpGw `GW_DEFAULT_UP`
 			writeLog "Alterado para o menor gateway pois a internet está down ($minimalOpGw)"
 		fi
