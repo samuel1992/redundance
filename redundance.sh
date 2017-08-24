@@ -2,9 +2,9 @@
 
 # Script para fazer redundancia entre links de internet
 # Neste script existem algumas formas diferentes de fazer o balanceamento, basicamente usando as funcoes : 
-# - testPrimaryGw e testOnlyIf
+# - testPrimaryGw, testOnlyIf e testMultipleGw
 #
-# O script deve ficar com permissao de execucao e setado no CRON para rodar sempre
+# O script deve ficar com permissao de execucao 
 #
 #date: 29/04/2015
 #@by Samuel Dantas
